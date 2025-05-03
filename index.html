@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#2c3e50" />
+  <title>Anti Latido - PWA</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      background: #ecf0f1;
+      padding: 2rem;
+    }
+    button {
+      font-size: 1.2rem;
+      padding: 1rem 2rem;
+      margin-top: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Anti Latido</h1>
+  <p>Toque em "Iniciar" e mantenha a aba aberta. O app vai detectar barulhos e tocar seu comando de voz.</p>
+  <button onclick="start()">Iniciar</button>
+
+  <script>
+    let audio = new Audio("comando.mp3");
+    let wakeLock = null;
+
+    async function start() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const context = new AudioContext();
+        const source = context.createMediaStreamSource(stream);
+        const analyser = context.createAnalyser();
+        const data = new Uint8Array(analyser.frequencyBinCount);
+
+        source.connect(analyser);
+
+        // Wake Lock: mantém a tela ligada
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+        }
+
+        function checkVolume() {
+          analyser.getByteFrequencyData(data);
+          let volume = data.reduce((a, b) => a + b) / data.length;
+
+          // Ajuste esse valor (20~50) conforme o ambiente
+          if (volume > 30) {
+            if (audio.paused) {
+              audio.play();
+            }
+          }
+
+          requestAnimationFrame(checkVolume);
+        }
+
+        checkVolume();
+
+      } catch (err) {
+        alert("Erro ao acessar microfone: " + err.message);
+      }
+    }
+
+    // Reativa Wake Lock caso perca
+    document.addEventListener("visibilitychange", () => {
+      if (wakeLock !== null && document.visibilityState === "visible") {
+        navigator.wakeLock.request('screen');
+      }
+    });
+  </script>
+</body>
+</html>

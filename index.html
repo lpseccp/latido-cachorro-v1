@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta name="theme-color" content="#2c3e50" />
   <title>Anti Latido - PWA</title>
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="manifest.json" />
   <style>
     body {
       font-family: sans-serif;
@@ -13,10 +13,64 @@
       background: #ecf0f1;
       padding: 2rem;
     }
+
+    h1 {
+      margin-bottom: 1rem;
+    }
+
+    #status {
+      font-size: 1.2rem;
+      font-weight: bold;
+      margin-top: 1rem;
+      color: green;
+    }
+
+    #volume-bar {
+      width: 80%;
+      height: 20px;
+      background: #ccc;
+      margin: 2rem auto 0.5rem auto;
+      border-radius: 10px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #volume-fill {
+      height: 100%;
+      width: 0%;
+      background: #3498db;
+      transition: width 0.1s;
+    }
+
+    #threshold-line {
+      position: absolute;
+      left: 30%;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: red;
+    }
+
     button {
       font-size: 1.2rem;
       padding: 1rem 2rem;
-      margin-top: 2rem;
+      margin-top: 1rem;
+    }
+
+    #trigger-status {
+      font-size: 1.1rem;
+      color: darkred;
+      margin-top: 1rem;
+      font-weight: bold;
+      visibility: hidden;
+    }
+
+    #volume-control {
+      margin-top: 1.5rem;
+    }
+
+    label {
+      font-weight: bold;
     }
   </style>
 </head>
@@ -25,9 +79,30 @@
   <p>Toque em "Iniciar" e mantenha a aba aberta. O app vai detectar barulhos e tocar seu comando de voz.</p>
   <button onclick="start()">Iniciar</button>
 
+  <div id="status">Status: Aguardando início...</div>
+
+  <div id="volume-bar">
+    <div id="threshold-line"></div>
+    <div id="volume-fill"></div>
+  </div>
+
+  <div id="trigger-status">Comando enviado!</div>
+
+  <div id="volume-control">
+    <label for="volumeRange">Volume do Comando:</label>
+    <input type="range" id="volumeRange" min="0" max="1" step="0.01" value="1" />
+  </div>
+
   <script>
     let audio = new Audio("comando.mp3");
     let wakeLock = null;
+    let lastPlayed = 0;
+
+    // Controle de volume do áudio
+    const volumeSlider = document.getElementById("volumeRange");
+    volumeSlider.addEventListener("input", () => {
+      audio.volume = volumeSlider.value;
+    });
 
     async function start() {
       try {
@@ -44,14 +119,29 @@
           wakeLock = await navigator.wakeLock.request('screen');
         }
 
+        document.getElementById("status").textContent = "Status: Ativado e escutando...";
+
         function checkVolume() {
           analyser.getByteFrequencyData(data);
           let volume = data.reduce((a, b) => a + b) / data.length;
 
-          // Ajuste esse valor (20~50) conforme o ambiente
-          if (volume > 30) {
+          // Atualiza barra visual
+          let volumePercent = Math.min((volume / 100) * 100, 100);
+          document.getElementById("volume-fill").style.width = volumePercent + "%";
+
+          // Mostra linha vermelha no ponto de corte (30%)
+          const now = Date.now();
+          const limite = 30;
+
+          if (volume > limite && (now - lastPlayed > 3000)) {
             if (audio.paused) {
               audio.play();
+              lastPlayed = now;
+
+              // Mostrar status de comando enviado
+              const triggerStatus = document.getElementById("trigger-status");
+              triggerStatus.style.visibility = "visible";
+              setTimeout(() => triggerStatus.style.visibility = "hidden", 2000);
             }
           }
 
@@ -62,6 +152,7 @@
 
       } catch (err) {
         alert("Erro ao acessar microfone: " + err.message);
+        document.getElementById("status").textContent = "Erro ao acessar microfone.";
       }
     }
 
